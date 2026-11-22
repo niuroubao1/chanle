@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#111315">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="馋了">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<title>馋了 · 10分钟</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#111315;color:#e8e6e1;font-family:-apple-system,"PingFang SC","Microsoft Yahei",sans-serif;
+     padding:calc(18px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));line-height:1.55}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:.5px}
+.sub{color:#8c8a85;font-size:13px;margin-bottom:18px}
+#ring{position:relative;width:230px;height:230px;margin:8px auto 6px}
+#timer{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#clock{font-size:52px;font-variant-numeric:tabular-nums;font-weight:600;letter-spacing:2px}
+#phase{font-size:13px;color:#8c8a85;margin-top:2px}
+button{font-family:inherit;font-size:17px;border:0;border-radius:14px;padding:16px;width:100%;
+       background:#26292c;color:#e8e6e1;margin-top:10px;font-weight:600}
+button.primary{background:#e8b04b;color:#1a1a1a}
+button:active{transform:scale(.985)}
+.card{background:#1a1d20;border-radius:16px;padding:16px;margin-top:16px}
+.card h2{font-size:15px;margin:0 0 10px;color:#e8b04b;font-weight:600}
+ol,ul{margin:0;padding-left:22px}
+li{margin:7px 0;font-size:15px}
+.tick{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #24282c;font-size:15px}
+.tick:last-child{border-bottom:0}
+.tick input{width:22px;height:22px;accent-color:#e8b04b;flex:0 0 auto}
+.tick input:checked+span{color:#6d6f6d;text-decoration:line-through}
+#out{font-size:14px;color:#b8b5ae;min-height:20px;margin-top:10px}
+textarea{width:100%;background:#24282c;color:#e8e6e1;border:0;border-radius:10px;padding:10px;font-size:14px;
+         font-family:inherit;resize:vertical;min-height:70px}
+.log{font-size:13px;color:#9c9a95;border-bottom:1px dashed #2b2f33;padding:7px 0}
+.hide{display:none}
+.red{color:#e06c5c}
+</style>
+</head>
+<body>
+<h1>馋了？先别动</h1>
+<div class="sub">10 分钟。它自己会掉下去。</div>
+
+<div id="ring">
+  <svg width="230" height="230" viewBox="0 0 230 230">
+    <circle cx="115" cy="115" r="103" fill="none" stroke="#24282c" stroke-width="10"/>
+    <circle id="arc" cx="115" cy="115" r="103" fill="none" stroke="#e8b04b" stroke-width="10"
+            stroke-linecap="round" stroke-dasharray="647" stroke-dashoffset="0"
+            transform="rotate(-90 115 115)"/>
+  </svg>
+  <div id="timer"><div id="clock">10:00</div><div id="phase">点下面开始</div></div>
+</div>
+
+<button class="primary" id="start">开始 10 分钟</button>
+<button id="reset" class="hide">重置</button>
+<div id="out"></div>
+
+<div class="card">
+  <h2>这 10 分钟里做（按顺序）</h2>
+  <label class="tick"><input type="checkbox"><span>喝 500ml 冰水</span></label>
+  <label class="tick"><input type="checkbox"><span>刷牙 + 漱口水</span></label>
+  <label class="tick"><input type="checkbox"><span>冷水洗手 / 洗脸 30 秒</span></label>
+  <label class="tick"><input type="checkbox"><span>20 个深蹲</span></label>
+  <label class="tick"><input type="checkbox"><span>闻咖啡豆或橘子皮</span></label>
+</div>
+
+<div class="card" id="decision">
+  <h2>10 分钟后，还想吃吗</h2>
+  <button id="no" class="primary">不想了</button>
+  <button id="yes">还是想吃 → 按规则吃</button>
+</div>
+
+<div class="card hide" id="rule">
+  <h2>按规则吃，不算失败</h2>
+  <ol>
+    <li>装进盘子，别对着包装袋吃</li>
+    <li>坐着吃，用左手拿筷子</li>
+    <li>用满 20 分钟吃完</li>
+    <li>只吃你刚才想吃的那一样，不加第二样</li>
+    <li>吃完回来记一笔</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2>我的 if-then</h2>
+  <textarea id="plans" spellcheck="false"></textarea>
+  <div class="sub" style="margin:8px 0 0">改完自动保存，只存在这台手机里。</div>
+</div>
+
+<div class="card">
+  <h2>馋账</h2>
+  <textarea id="note" placeholder="在干什么 / 什么情绪 / 想吃什么 / 强度0-10" spellcheck="false"></textarea>
+  <button id="log">记一笔</button>
+  <div id="logs"></div>
+  <button id="export" class="hide">复制全部记录</button>
+</div>
+
+<script>
+var KEY='chanji.v1';
+var S=JSON.parse(localStorage.getItem(KEY)||'{"plans":"","logs":[]}');
+if(!S.plans){S.plans="如果晚上9点想吃甜的，我就刷牙+喝气泡水+下楼走10分钟。\n如果路过便利店想进去，我就戴耳机直走，给朋友发一条消息。\n如果熬夜想点外卖，我就先躺下做10分钟呼吸，起不来就睡。";}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));}
+
+var plans=document.getElementById('plans');
+plans.value=S.plans;
+plans.oninput=function(){S.plans=plans.value;save();};
+
+var TOTAL=600,left=TOTAL,timerId=null;
+var clock=document.getElementById('clock'),arc=document.getElementById('arc'),
+    phase=document.getElementById('phase'),startBtn=document.getElementById('start'),
+    resetBtn=document.getElementById('reset'),out=document.getElementById('out'),
+    rule=document.getElementById('rule');
+function paint(){
+  var m=Math.floor(left/60),s=left%60;
+  clock.textContent=m+':'+(s<10?'0':'')+s;
+  arc.style.strokeDashoffset=647*(1-left/TOTAL);
+}
+function tick(){
+  left--;paint();
+  if(left<=0){clearInterval(timerId);timerId=null;
+    clock.textContent='10:00';phase.textContent='时间到，往下看';
+    document.getElementById('decision').scrollIntoView({behavior:'smooth',block:'center'});}
+}
+startBtn.onclick=function(){
+  if(timerId)return;
+  left=TOTAL;paint();phase.textContent='只观察，不动手';
+  out.textContent='';
+  timerId=setInterval(tick,1000);
+  startBtn.classList.add('hide');resetBtn.classList.remove('hide');
+};
+resetBtn.onclick=function(){
+  clearInterval(timerId);timerId=null;left=TOTAL;paint();
+  phase.textContent='点下面开始';
+  startBtn.classList.remove('hide');resetBtn.classList.add('hide');
+};
+document.getElementById('no').onclick=function(){
+  out.innerHTML='<span style="color:#7cc47c">过了。这一笔值得记。</span>';
+  addLog('冲过去了');
+};
+document.getElementById('yes').onclick=function(){
+  rule.classList.remove('hide');
+  rule.scrollIntoView({behavior:'smooth',block:'center'});
+  phase.textContent='按规则吃';
+};
+
+function addLog(tag){
+  var n=document.getElementById('note').value.trim();
+  if(!n&&tag!=='冲过去了'){document.getElementById('note').focus();return;}
+  var d=new Date();
+  var t=d.getMonth()+1+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  S.logs.unshift({t:t,txt:n,tag:tag||''});
+  save();document.getElementById('note').value='';
+  render();
+}
+document.getElementById('log').onclick=function(){addLog('');};
+
+function render(){
+  var box=document.getElementById('logs');
+  box.innerHTML='';
+  S.logs.slice(0,30).forEach(function(r){
+    var d=document.createElement('div');
+    d.className='log';
+    d.textContent=r.t+(r.tag?' ['+r.tag+']':'')+'  '+(r.txt||'');
+    box.appendChild(d);
+  });
+  document.getElementById('export').classList.toggle('hide',S.logs.length<2);
+}
+document.getElementById('export').onclick=function(){
+  var txt=S.logs.map(function(r){return r.t+(r.tag?' ['+r.tag+']':'')+' '+(r.txt||'');}).join('\n');
+  var ta=document.createElement('textarea');
+  ta.value=txt;document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');out.textContent='已复制，去粘给 Hermes。';}catch(e){out.textContent=txt;}
+  ta.remove();
+};
+
+paint();render();
+</script>
+</body>
+</html>
